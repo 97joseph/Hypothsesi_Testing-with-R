@@ -1,0 +1,174 @@
+---
+title: "Stat311 Wi 21 R Assignment 5 Tutorial:  Linear Regression"
+author: "Tamre Cardoso"
+date: "02/22/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(dplyr)
+library(ggplot2)
+knitr::opts_chunk$set(echo = TRUE)
+SHOW_SOLUTIONS = TRUE
+```
+Read in Ship Emission data.
+
+```{r, eval=TRUE}
+SE.df <- read.csv("ShipEmissions.csv",header=TRUE)
+```
+
+#### Explore Bivariate Relationship Between Fuel Usage and PM10 Variables
+Since these are just exploratory for my own use, we will not worry about making the scatterplot pretty with nice axis labels--we just want to understand see the relationship so we can think about how to proceed with an analysis.
+
+```{r fuel pm10 scatter}
+plot(SE.df$Fuel, SE.df$PM10)
+```
+
+The relationship looks linear. Maybe fuel usage can be used to estimate PM10 levels. We will fit a linear regression model.
+
+```{r fuel pm10 regression}
+lm1.out <- lm(SE.df$PM10 ~ SE.df$Fuel)
+summary(lm1.out)
+```
+
+The regression output gives the regression equation PM10.hat = -3.37 + 0.0059(Fuel). For each 1 metric ton increase in fuel consumption, PM10 levels increase by 0.0059 tonnes, on average. 
+
+The standard error for regression, s[e] = 9.292. The average variation in PM10 around the regression line is about 9 metric tons.
+
+The R^2 = 0.9939 [there are two R^2 values; we will use the multiple R^2 for this class]. This means that about 99% of the variation in PM10 values can be explained by knowing the fuel consumption. Now we need to do some model diagnostics.
+
+```{r lm1 diagnostics}
+plot(SE.df$Fuel, SE.df$PM10)
+abline(lm1.out)
+plot(fitted(lm1.out), residuals(lm1.out))
+abline(h=0,col="gray")
+hist(residuals(lm1.out))
+qqnorm(residuals(lm1.out))
+qqline(residuals(lm1.out))
+```
+
+The residuals look problematic. They do not bounce around the zero line almost equally with no pattern. We also see some evidence of increasing variability with increasing fuel usage (non-constant variance). Further, the residuals do not look to be normally distributed. Let's look at the univariate summaries for fuel and PM10.
+
+```{r univariate summaries for fuel and pm10}
+par(mfrow=c(2,2))
+# Fuel Usage
+summary(SE.df$Fuel)
+hist(SE.df$Fuel)
+boxplot(SE.df$Fuel)
+
+# PM10
+summary(SE.df$PM10)
+hist(SE.df$PM10)
+boxplot(SE.df$PM10)
+```
+
+Both distributions are unimodal and strongly right skewed with some high outliers. In order to use regression methods, we would like the distributions for both variables to be unimodal and approximately symmetric. The log transformation can sometimes be used to get better symmetry when a distribution is right skewed. In R the function log( ) is the natural log (base e) transformation and log10( ) is a log base 10 transformation. I generally use log( ) but some fields of study tend to use log10. 
+
+A log-log transformation turns the additive model into a multiplicative change model
+For a natural log-log transformation, we get multiplicative changes in both x and y.
+
+Let's look at the histograms and boxplots for natural log transformed Fuel and PM10.
+
+##### Explore Natural Log Transformation for Fuel and PM10
+
+```{r distributions with log transformation}
+par(mfrow=c(2,2))
+hist(log(SE.df$Fuel))
+boxplot(log(SE.df$Fuel))
+hist(log(SE.df$PM10))
+boxplot(log(SE.df$PM10))
+
+par(mfrow=c(1,1))
+plot(log(SE.df$Fuel), log(SE.df$PM10))
+```
+
+The individual distributions for Fuel and PM10 are unimodal and still right-skewed, but the skew if much milder. Also, log transformation got rid of the outliers for both variables. We next try a log-log transformation.
+
+```{r log-log regression}
+lm2.out <- lm(log(SE.df$PM10) ~ log(SE.df$Fuel))
+summary(lm2.out)
+```
+
+The new regression model is logPM10.hat = -5.4 + 1.02(log(Fuel)), where log is the natural log. We can say that each one unit increase in log(Fuel) increases logPM10
+by 1.02, on average, but since it is difficult to think directly in natural log units, this is not particularly useful. 
+
+In terms of the original units, we can say that a 1% increase in fuel multiplies PM10 by e^(1.02 x log(1.01)) = 1.01. So, on average, a 1% increase in fuel consumption results in about a (1.01 - 1)x 100% = 1% increase in PM10. Likewise, you can scale up and say, on average, a 10% increase in fuel consumption results in about a 10.2% increase in PM10.
+
+The s[e] is 0.106. You cannot compare this number between models. It will only be useful if you are comparing across similar models--say using multiple x variables. 
+
+R^2 is 0.9955. Close to 100% of the variation in PM10 levels can be explained by knowing fuel consumption.
+
+Let's look at model diagnostics for the log-log model.
+
+```{r lm2 diagnostics}
+plot(log(SE.df$Fuel), log(SE.df$PM10))
+abline(lm2.out)
+plot(fitted(lm2.out), residuals(lm2.out))
+abline(h=0,col="gray")
+hist(residuals(lm2.out))
+qqnorm(residuals(lm2.out))
+qqline(residuals(lm2.out))
+```
+
+The residual plots look better, but the histogram of residuals is still not normal. There is a low outlier that should be looked at. You would rerun the regression without the outlier and see how the slope changes and how the residuals behave. If you are interested, try it out. I am going to leave this regression here for now.
+
+##### Inference for Regression
+
+###### Inference for the Slope Parameter
+
+The summary output gives the results of a hypothesis test for
+
+          H0:  Beta1 = 0 versus Ha: Beta1 != 0.
+
+Look at the second line for the slope estimate under the Coefficients section:
+
+    Coefficients:
+                    Estimate Std. Error t value Pr(>|t|)    
+    (Intercept)     -5.40075    0.10312  -52.37   <2e-16 ***
+    log(SE.df$Fuel)  1.02007    0.01208   84.47   <2e-16 ***
+    
+    Residual standard error: 0.106 on 32 degrees of freedom
+    
+The test gives a t statistic of 84.47 on 32 degrees of freedom (from the third line from the bottom of the summary call). The p-value is < 2 x 10^-16. For any reasonable alpha, there is strong evidence to support that the slope estimate for log(Fuel) is not equal to zero. If you wanted a one tailed alternative in the > direction, the p-value would be < 1 x 10^-16.
+
+If you want to get a confidence interval for the slope, you can use R as a calculator to get the interval. The output gives you the estimate, SE[b1] = 0.01208. You can get a 95% confidence interval for Beta1 as follows:
+
+```{r}
+(L95 <- 1.02007 - (abs(qt(0.025, df=32)) * 0.01208))
+(U95 <- 1.02007 + (abs(qt(0.975, df=32)) * 0.01208))
+```
+
+We are 95% confident that the slope for log(PM10) on log(Fuel) falls between about 1.00 and 1.04 when rounded to two decimal places.
+
+You can get different confidence levels by adjusting the probability that is passed to the qt function call.
+
+##### Confidence and Prediction Intervals for y | x = xnaught
+
+For each interval, you need to pick one or more values of x of interest. We call these values of x, x-naught. We create a simple new data frame for the x-naught values. Then we call the predict function. If you want a confidence interval for the mean value of PM10 given a particular fuel consumption level, set the interval argument to confidence; if you want an interval for a new, random future PM10 value given a particular level of fuel consumption, set the interval argument to prediction.
+
+Let's calculate the 99% confidence and prediction intervals for log(PM10) when fuel consumption is 23,000 tonnes and 50,000 tonnes.
+
+```{r}
+lm2.out <- lm(log(PM10) ~ log(Fuel), data=data.frame(SE.df))
+new.fuel <- data.frame(Fuel = c(23000, 50000))
+(CI.PM10 <- predict(lm2.out, newdata = new.fuel, interval = "confidence",
+        level = 0.99))
+(PI.PM10 <- predict(lm2.out, newdata = new.fuel, interval = "prediction", 
+        level = 0.99))
+```
+
+There are two rows of output with fitted values and upper and lower bounds, one for each price. The first set of output is the confidence intervals for the mean PM10 values for the given fuel consumption levels, and the second set are the prediction intervals for new, random individual PM10 levels for the given fuel consumption levels. But, these values are in log(PM10) levels. To get to original units of tonnes, we need to exponentiate back.
+
+```{r}
+(CI.PM10.Orig <- exp(CI.PM10))
+(PI.PM10.Orig <- exp(PI.PM10))
+```
+
+We are 99% confident that the mean PM10 value when fuel consumption is 23,000 tonnes falls between about 118 and 137 tonnes. 
+
+We are 99% confident that the mean PM10 value when fuel consumption is 50,000 tonnes falls between about 255 and 308 tonnes. 
+
+There is a 99% chance that a new randomly selected PM10 observation when fuel consumption is 23,000 tonnes will be between about 94 and 171 tonnes.
+
+There is a 99% chance that a new randomly selected PM10 observation when fuel consumption is 50,000 tonnes will be between about 207 and 380 tonnes.
